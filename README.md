@@ -6,9 +6,9 @@
 
 휴대폰으로 아래 링크를 눌러 APK를 받아 설치하세요.
 
-**[kana-study.apk 내려받기](https://github.com/g59raphy/kana-study/releases/latest/download/kana-study.apk)**
+**[최신 버전 내려받기 페이지](https://github.com/g59raphy/kana-study/releases/latest)** — 페이지에서 `kana-study-v버전.apk` 파일을 누르세요.
 
-1. 링크를 누르면 `kana-study.apk` 가 내려받아집니다.
+1. 페이지 아래 Assets 에서 `kana-study-v1.0.○.apk` 를 눌러 내려받습니다.
 2. 내려받은 파일을 엽니다.
 3. "출처를 알 수 없는 앱" 경고가 나오면 **설정 → 이 출처 허용**을 켭니다.
 4. **설치**를 누릅니다.

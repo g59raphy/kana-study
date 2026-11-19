@@ -16,6 +16,7 @@ button{font-family:inherit;cursor:pointer}
 header{position:sticky;top:0;z-index:5;background:var(--bg);padding:calc(12px + env(safe-area-inset-top)) 16px 10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 header h1{font-size:19px;margin:0;font-weight:800}
 header h1 span{color:var(--accent)}
+header h1 .by{display:block;font-size:11px;font-weight:600;color:var(--sub);margin-top:1px;letter-spacing:.2px}
 .seg{display:inline-flex;background:var(--line);border-radius:999px;padding:3px}
 .seg button{border:0;background:none;padding:7px 13px;border-radius:999px;font-size:14px;color:var(--sub);font-weight:700;white-space:nowrap}
 .seg button.on{background:var(--card);color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.15)}
@@ -99,7 +100,7 @@ h2{font-size:15px;margin:18px 2px 8px;color:var(--sub)}
 <body>
 <div id="app">
   <header>
-    <h1>가나 <span>공부</span></h1>
+    <h1>가나 <span>공부</span><small class="by">(made by 도현)</small></h1>
     <div class="seg" id="scriptSeg">
       <button data-v="h" class="jp">ひらがな</button>
       <button data-v="k" class="jp">カタカナ</button>
@@ -485,8 +486,8 @@ function score(c,strokes,fit){
     const tb=strokesBox(strokes);
     // ① 겹침 점수: 위치가 맞춰진 상태라 허용 오차를 좁혀 비슷한 글자(ぬ/め 등)를 구별
     const G =thin(maskOf((x,n)=>drawGlyphIn(x,n,c,'#000',0,tb),N),N);
-    const Gd=maskOf((x,n)=>drawGlyphIn(x,n,c,'#000',n*0.08,tb),N);
-    const o=compare(G,Gd,strokes,N,0.08);
+    const Gd=maskOf((x,n)=>drawGlyphIn(x,n,c,'#000',n*0.09,tb),N);
+    const o=compare(G,Gd,strokes,N,0.09);
     // ② 거리 점수: 쓴 선과 모범 글자 중심선이 서로 얼마나 가까운지 (손글씨의 자연스러운 휘어짐에 너그러움)
     const d=distScore(c,strokes);
     return Math.round((o+d)/2);
@@ -520,7 +521,7 @@ function distScore(c,strokes){ // strokes는 이미 가운데 70% 상자로 정�
   const U=resample(strokes,0.01),G=glyphCore(c);if(!U.length||!G.length)return 0;
   const a=nearest(U,G),b=nearest(G,U),mean=v=>v.reduce((x,y)=>x+y,0)/v.length,p90=v=>v[Math.floor(v.length*0.9)];
   const e=0.5*Math.max(mean(a),mean(b))+0.5*Math.max(p90(a),p90(b)); // 평균 거리 + 가장 어긋난 부분
-  return Math.max(0,Math.min(1,(0.13-e)/0.09))*100;
+  return Math.max(0,Math.min(1,(0.15-e)/0.10))*100;
 }
 function compare(G,Gd,strokes,N,uTol){
   const U =maskOf((x,n)=>drawStrokes(x,n,n*0.05,'#000',strokes),N);
@@ -529,7 +530,7 @@ function compare(G,Gd,strokes,N,uTol){
   for(let i=0;i<N*N;i++){if(U[i]){u++;if(Gd[i])ug++}if(G[i]){g++;if(Ud[i])gu++}}
   if(!u||!g)return 0;
   const P=ug/u,R=gu/g;
-  return Math.round(Math.max(0,Math.min(1,(P*R-0.3)/0.6))*100);
+  return Math.round(Math.max(0,Math.min(1,(P*R-0.22)/0.6))*100);
 }
 function setResult(html){$('#wResult').innerHTML=html||`<div class="msg">${S.writeMode==='trace'?'회색 글자를 따라 써 보세요':'발음을 보고 글자를 떠올려 써 보세요'}</div>`}
 function doCheck(auto){
@@ -572,7 +573,7 @@ bindSeg('#writeModeSeg','writeMode',()=>loadWrite(true));
 
 // ---------- 업데이트 확인 (GitHub 최신 릴리스와 앱 버전 비교) ----------
 const REPO='g59raphy/kana-study';
-const APK_URL=`https://github.com/${REPO}/releases/latest/download/kana-study.apk`;
+let APK_URL=`https://github.com/${REPO}/releases/latest`; // 릴리스 정보를 받으면 실제 APK 주소로 바뀜
 const verNum=v=>String(v||'').replace(/^v/,'').split('.').map(n=>parseInt(n,10)||0);
 const newer=(a,b)=>{const x=verNum(a),y=verNum(b);for(let i=0;i<Math.max(x.length,y.length);i++){if((x[i]||0)!==(y[i]||0))return (x[i]||0)>(y[i]||0)}return false};
 async function checkUpdate(){
@@ -582,7 +583,10 @@ async function checkUpdate(){
     const {version}=await app.getInfo();
     const r=await fetch(`https://api.github.com/repos/${REPO}/releases/latest`,{headers:{Accept:'application/vnd.github+json'}});
     if(!r.ok)return;
-    const latest=(await r.json()).tag_name;
+    const rel=await r.json(),latest=rel.tag_name;
+    // 파일명에 버전이 들어가므로(kana-study-v1.0.N.apk) 릴리스의 APK 파일 주소를 그대로 사용
+    const apk=(rel.assets||[]).find(a=>/^kana-study-v.*\.apk$/.test(a.name))||(rel.assets||[]).find(a=>/\.apk$/.test(a.name));
+    if(apk)APK_URL=apk.browser_download_url;
     if(!newer(latest,version)||S.skipVer===latest)return;
     $('#updVer').textContent=latest;
     $('#updCur').textContent=`지금 버전 v${version} · 학습 기록은 그대로 남아요`;
