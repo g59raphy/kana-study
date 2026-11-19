@@ -30,7 +30,13 @@ jobs:
       - name: Create Android project
         run: |
           npx cap add android
-          npx @capacitor/assets generate --android --iconBackgroundColor '#ffffff' --iconBackgroundColorDark '#ffffff' --splashBackgroundColor '#faf7f2' --splashBackgroundColorDark '#16161a'
+          # 시작 화면(스플래시) 생성
+          npx @capacitor/assets generate --android --splashBackgroundColor '#faf7f2' --splashBackgroundColorDark '#16161a'
+          # 앱 아이콘: 미리 만들어 둔 res/ 를 그대로 덮어씀 (기본 아이콘 제거 후 복사)
+          rm -f android/app/src/main/res/mipmap-*/ic_launcher*
+          cp -r res/. android/app/src/main/res/
+          ls android/app/src/main/res/mipmap-xxxhdpi android/app/src/main/res/mipmap-anydpi-v26
+          cmp res/mipmap-xxxhdpi/ic_launcher_foreground.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
           # 세로 화면 고정
           sed -i 's/android:name=".MainActivity"/android:name=".MainActivity" android:screenOrientation="portrait"/' android/app/src/main/AndroidManifest.xml
           # 업데이트 설치가 되도록 버전 번호 증가

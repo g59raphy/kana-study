@@ -422,7 +422,12 @@ function drawStrokes(ctx,N,width,color,list){
 function drawGuide(){
   const N=guide.width;gctx.clearRect(0,0,N,N);const it=witem();if(!it)return;
   if(S.writeMode==='trace'&&!W.checked)drawGlyph(gctx,N,ch(it),css('--guide'));
-  if(W.checked){gctx.globalAlpha=.35;drawGlyph(gctx,N,ch(it),css('--accent'));gctx.globalAlpha=1}
+  if(W.checked){ // 보고쓰기는 모범 글자를 내가 쓴 크기·위치에 맞춰 겹쳐 보여줌
+    gctx.globalAlpha=.35;
+    if(S.writeMode==='recall'&&W.strokes.length)drawGlyphIn(gctx,N,ch(it),css('--accent'),0,strokesBox(W.strokes));
+    else drawGlyph(gctx,N,ch(it),css('--accent'));
+    gctx.globalAlpha=1;
+  }
 }
 function drawInk(){const N=ink.width;ictx.clearRect(0,0,N,N);drawStrokes(ictx,N,N*0.05,css('--ink'),W.strokes)}
 
@@ -455,12 +460,71 @@ function maskOf(draw,N){
   const d=x.getImageData(0,0,N,N).data,m=new Uint8Array(N*N);
   for(let i=0;i<N*N;i++)m[i]=d[i*4+3]>60?1:0;return m;
 }
-function score(c,strokes){
+// 보고쓰기용: 크기·위치를 무시하도록, 쓴 글씨와 모범 글자를 각각 테두리 상자에 맞춰 같은 크기로 정규화
+function strokesBox(st){let a=1,b=1,c=0,d=0;for(const s of st)for(const [x,y] of s){if(x<a)a=x;if(y<b)b=y;if(x>c)c=x;if(y>d)d=y}return [a,b,c,d]}
+const GBOX={};
+function glyphBox(c){
+  if(GBOX[c])return GBOX[c];
+  const N=200,m=maskOf((x,n)=>drawGlyph(x,n,c,'#000'),N);let a=N,b=N,cc=0,d=0;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++)if(m[y*N+x]){if(x<a)a=x;if(y<b)b=y;if(x>cc)cc=x;if(y>d)d=y}
+  return GBOX[c]=[a/N,b/N,(cc+1)/N,(d+1)/N];
+}
+const boxSize=b=>Math.max(b[2]-b[0],b[3]-b[1],0.05);
+const boxMid=b=>[(b[0]+b[2])/2,(b[1]+b[3])/2];
+// 모범 글자를 box 위치·크기에 맞춰 그림
+function drawGlyphIn(ctx,N,c,fill,strokeW,tBox){
+  const g=glyphBox(c),s=boxSize(tBox)/boxSize(g),[gx,gy]=boxMid(g),[tx,ty]=boxMid(tBox);
+  ctx.save();ctx.translate(tx*N,ty*N);ctx.scale(s,s);ctx.translate(-gx*N,-gy*N);
+  drawGlyph(ctx,N,c,fill,strokeW?strokeW/s:0);ctx.restore();
+}
+function score(c,strokes,fit){
   const N=100;
+  if(fit){ // 쓴 글씨를 가운데 70% 크기로 옮기고, 모범 글자도 같은 상자에 맞춤
+    const ub=strokesBox(strokes),k=0.7/boxSize(ub),[ux,uy]=boxMid(ub);
+    strokes=strokes.map(s=>s.map(([x,y])=>[(x-ux)*k+0.5,(y-uy)*k+0.5]));
+    const tb=strokesBox(strokes);
+    // ① 겹침 점수: 위치가 맞춰진 상태라 허용 오차를 좁혀 비슷한 글자(ぬ/め 등)를 구별
+    const G =thin(maskOf((x,n)=>drawGlyphIn(x,n,c,'#000',0,tb),N),N);
+    const Gd=maskOf((x,n)=>drawGlyphIn(x,n,c,'#000',n*0.08,tb),N);
+    const o=compare(G,Gd,strokes,N,0.08);
+    // ② 거리 점수: 쓴 선과 모범 글자 중심선이 서로 얼마나 가까운지 (손글씨의 자연스러운 휘어짐에 너그러움)
+    const d=distScore(c,strokes);
+    return Math.round((o+d)/2);
+  }
   const G =maskOf((x,n)=>drawGlyph(x,n,c,'#000'),N);
   const Gd=maskOf((x,n)=>drawGlyph(x,n,c,'#000',n*0.11),N);
+  return compare(G,Gd,strokes,N,0.11);
+}
+// 테두리를 한 겹씩 깎아 획의 중심선 근처만 남김 (원래 픽셀의 25% 아래로는 깎지 않음)
+function thin(m,N){
+  const total=m.reduce((a,b)=>a+b,0);let cur=m;
+  for(let it=0;it<20;it++){
+    const nx=new Uint8Array(N*N);let cnt=0;
+    for(let y=1;y<N-1;y++)for(let x=1;x<N-1;x++){const i=y*N+x;if(cur[i]&&cur[i-1]&&cur[i+1]&&cur[i-N]&&cur[i+N]){nx[i]=1;cnt++}}
+    if(cnt<total*0.25)break;cur=nx;
+  }
+  return cur;
+}
+// 모범 글자의 중심선 점들 (가운데 70% 상자에 맞춘 좌표, 글자별로 한 번만 계산)
+const CORE={};
+function glyphCore(c){
+  if(CORE[c])return CORE[c];
+  const N=100,g=glyphBox(c),s=0.7/boxSize(g),[gx,gy]=boxMid(g);
+  const m=thin(maskOf((x,n)=>{x.save();x.translate(n/2,n/2);x.scale(s,s);x.translate(-gx*n,-gy*n);drawGlyph(x,n,c,'#000');x.restore()},N),N);
+  const p=[];for(let i=0;i<N*N;i++)if(m[i])p.push([(i%N+0.5)/N,((i/N|0)+0.5)/N]);
+  return CORE[c]=p;
+}
+function resample(st,step){const out=[];for(const s of st){out.push(s[0]);for(let i=1;i<s.length;i++){const [x0,y0]=s[i-1],[x1,y1]=s[i],d=Math.hypot(x1-x0,y1-y0),n=Math.max(1,Math.ceil(d/step));for(let k=1;k<=n;k++)out.push([x0+(x1-x0)*k/n,y0+(y1-y0)*k/n])}}return out}
+function nearest(A,B){return A.map(([ax,ay])=>{let b=1e9;for(const [bx,by] of B){const d=(ax-bx)*(ax-bx)+(ay-by)*(ay-by);if(d<b)b=d}return Math.sqrt(b)}).sort((a,b)=>a-b)}
+function distScore(c,strokes){ // strokes는 이미 가운데 70% 상자로 정규화된 상태
+  const U=resample(strokes,0.01),G=glyphCore(c);if(!U.length||!G.length)return 0;
+  const a=nearest(U,G),b=nearest(G,U),mean=v=>v.reduce((x,y)=>x+y,0)/v.length,p90=v=>v[Math.floor(v.length*0.9)];
+  const e=0.5*Math.max(mean(a),mean(b))+0.5*Math.max(p90(a),p90(b)); // 평균 거리 + 가장 어긋난 부분
+  return Math.max(0,Math.min(1,(0.13-e)/0.09))*100;
+}
+function compare(G,Gd,strokes,N,uTol){
   const U =maskOf((x,n)=>drawStrokes(x,n,n*0.05,'#000',strokes),N);
-  const Ud=maskOf((x,n)=>drawStrokes(x,n,n*0.11,'#000',strokes),N);
+  const Ud=maskOf((x,n)=>drawStrokes(x,n,n*uTol,'#000',strokes),N);
   let u=0,ug=0,g=0,gu=0;
   for(let i=0;i<N*N;i++){if(U[i]){u++;if(Gd[i])ug++}if(G[i]){g++;if(Ud[i])gu++}}
   if(!u||!g)return 0;
@@ -472,9 +536,9 @@ function doCheck(auto){
   clearTimers();
   if(W.checked)return;
   if(!W.strokes.length){if(!auto)toast('먼저 글자를 써 보세요');return}
-  const it=witem(),sc=score(ch(it),W.strokes);
+  const it=witem(),sc=score(ch(it),W.strokes,S.writeMode==='recall');
   const s=st(ch(it));if(sc>s.ws)s.ws=sc;
-  if(S.writeMode==='recall'){sc>=60?s.c++:s.w++}
+  if(S.writeMode==='recall'){sc>=65?s.c++:s.w++}
   save();
   W.checked=true;drawGuide();
   const [msg,col]=sc>=85?['완벽해요! 🎉','var(--good)']:sc>=65?['잘 썼어요 👍','var(--good)']:sc>=45?['조금만 더! 빨간 글자와 비교해 보세요','#e0a32e']:['다시 써 볼까요? 빨간 글자를 참고하세요','var(--bad)'];
