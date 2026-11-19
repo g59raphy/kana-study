@@ -20,7 +20,7 @@ header h1 span{color:var(--accent)}
 .seg{display:inline-flex;background:var(--line);border-radius:999px;padding:3px}
 .seg button{border:0;background:none;padding:7px 13px;border-radius:999px;font-size:14px;color:var(--sub);font-weight:700;white-space:nowrap}
 .seg button.on{background:var(--card);color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.15)}
-.secs{display:flex;gap:8px;margin:0 16px 12px}
+.secs{display:flex;gap:8px;margin:0 16px 10px}
 .secs button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:2px solid var(--line);background:var(--card);color:var(--sub);border-radius:14px;padding:10px 6px;font-size:16px;font-weight:800}
 .secs button b{font-size:19px;font-weight:600}
 .secs button.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
@@ -75,7 +75,7 @@ h2{font-size:15px;margin:18px 2px 8px;color:var(--sub)}
 .choice.vj{font-size:22px;font-weight:600;padding:10px 4px}
 .choice.vj small{font-size:13px;margin-top:2px}
 /* write */
-.target{display:flex;align-items:center;gap:12px;margin:12px 0}
+.target{display:flex;align-items:center;gap:12px;margin:6px 0 8px}
 .target .tk{font-size:46px;width:62px;text-align:center}
 .target .tr{font-size:22px;font-weight:800}
 .target .tr small{display:block;font-size:13px;color:var(--sub);font-weight:600}
@@ -87,7 +87,10 @@ h2{font-size:15px;margin:18px 2px 8px;color:var(--sub)}
 #ink{touch-action:none;z-index:2}
 .tools{display:flex;gap:8px;margin-top:12px}
 .tools .btn{flex:1;padding:12px 6px}
-.result{text-align:center;margin-top:12px;min-height:58px}
+.result{text-align:center;margin-top:6px;min-height:50px}
+.wnav{display:flex;gap:6px;margin-top:6px}
+.wnav .btn{padding:10px 0;width:44px;flex:none;font-size:17px}
+.wnav .chip{flex:1;width:auto;font-size:13px;padding:10px 4px;white-space:nowrap}
 .result b{font-size:30px;letter-spacing:.04em}
 .result .msg{font-size:14px;color:var(--sub);margin-top:2px}
 /* sheet */
@@ -222,14 +225,12 @@ h2{font-size:15px;margin:18px 2px 8px;color:var(--sub)}
         <button class="btn pri" id="wCheck">채점</button>
       </div>
       <div class="result" id="wResult"><div class="msg">칸 안에 손가락으로 써 보세요</div></div>
-      <div class="tools" style="margin-top:4px">
-        <button class="btn" id="wPrev">← 이전</button>
-        <button class="btn" id="wRand">🔀 랜덤</button>
-        <button class="btn" id="wNext">다음 →</button>
-      </div>
-      <div style="text-align:center;margin-top:10px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
-        <button class="btn" id="wAuto" style="font-size:13px;padding:8px 14px;border-radius:99px"></button>
-        <button class="btn" id="wOrder" style="font-size:13px;padding:8px 14px;border-radius:99px"></button>
+      <div class="wnav" id="wNavRow">
+        <button class="btn" id="wPrev" aria-label="이전 글자">←</button>
+        <button class="btn" id="wRand" aria-label="랜덤 글자">🔀</button>
+        <button class="btn" id="wNext" aria-label="다음 글자">→</button>
+        <button class="btn chip" id="wAuto"></button>
+        <button class="btn chip" id="wOrder"></button>
       </div>
     </section>
     <div class="by">(made by 도현)</div>
@@ -807,13 +808,23 @@ const FONT='"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans CJK JP","Noto
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const witem=()=>W.pool[W.idx];
 
+// 쓰기 칸 크기: 아래 버튼 줄까지 한 화면(아래 메뉴 위)에 들어오도록 줄임
+function fitPad(){
+  const p=$('#pad');p.style.maxWidth='';
+  const w=p.getBoundingClientRect().width;if(!w)return;
+  const navH=$('nav').getBoundingClientRect().height||0;
+  const over=$('#wNavRow').getBoundingClientRect().bottom+8-(window.innerHeight-navH);
+  if(over>0)p.style.maxWidth=Math.max(170,Math.floor(w-over))+'px';
+}
 function sizePad(){
+  if(S.tab==='write'){window.scrollTo(0,0);fitPad()}
   const r=$('#pad').getBoundingClientRect();if(!r.width)return;
   W.dpr=window.devicePixelRatio||1;W.S=r.width;
   for(const c of [ink,guide]){c.width=Math.round(r.width*W.dpr);c.height=Math.round(r.height*W.dpr)}
   drawGuide();drawInk();
 }
 window.addEventListener('resize',()=>{if(S.tab==='write')sizePad()});
+window.addEventListener('load',()=>{if(S.tab==='write')sizePad()});
 
 // 획 데이터(KanjiVG SVG 경로, 109×109 좌표)를 점 목록으로 바꿈
 const KP={};
@@ -1045,11 +1056,11 @@ function doCheck(auto){
   if(goOn)nextT=setTimeout(()=>{if(S.tab==='write'&&W.checked)$('#wNext').click()},1400);
 }
 $('#wCheck').onclick=()=>doCheck(false);
-function paintAuto(){const on=S.auto!==false;$('#wAuto').textContent=on?'⚡ 자동 채점·넘기기 켜짐':'자동 채점·넘기기 꺼짐';$('#wAuto').classList.toggle('pri',on)}
+function paintAuto(){const on=S.auto!==false;$('#wAuto').textContent=on?'⚡ 자동 채점':'자동 채점 꺼짐';$('#wAuto').classList.toggle('pri',on)}
 $('#wAuto').onclick=()=>{S.auto=S.auto===false;save();paintAuto();clearTimers();toast(S.auto?'다 쓰면 알아서 채점하고, 잘 쓰면 다음 글자로 넘어가요':'채점·다음 버튼을 직접 눌러요')};
 paintAuto();
-function paintOrder(){const on=S.order!==false;$('#wOrder').textContent=on?'🔢 획순 보기 켜짐':'획순 보기 꺼짐';$('#wOrder').classList.toggle('pri',on);$('#wOrder').style.display=S.writeMode==='trace'?'':'none'}
-$('#wOrder').onclick=()=>{S.order=S.order===false;save();paintOrder();drawGuide()};
+function paintOrder(){const on=S.order!==false;$('#wOrder').textContent=on?'🔢 획순 보기':'획순 꺼짐';$('#wOrder').classList.toggle('pri',on);$('#wOrder').style.display=S.writeMode==='trace'?'':'none'}
+$('#wOrder').onclick=()=>{S.order=S.order===false;save();paintOrder();drawGuide();toast(S.order?'획순 번호와 화살표를 보여줘요':'획순 표시를 껐어요')};
 paintOrder();
 $('#wUndo').onclick=()=>{clearTimers();if(W.checked){W.checked=false;drawGuide();setResult()}W.strokes.pop();drawInk()};
 $('#wClear').onclick=()=>{clearTimers();W.strokes=[];W.checked=false;drawGuide();drawInk();setResult()};
@@ -1088,8 +1099,8 @@ async function checkUpdate(){
     if(!newer(latest,version)||S.skipVer===latest)return;
     $('#updVer').textContent=latest;
     $('#updCur').textContent=`지금 버전 v${version} · 학습 기록은 그대로 남아요`;
-    $('#updateBar').classList.add('on');
-    $('#updClose').onclick=()=>{S.skipVer=latest;save();$('#updateBar').classList.remove('on')};
+    $('#updateBar').classList.add('on');if(S.tab==='write')sizePad();
+    $('#updClose').onclick=()=>{S.skipVer=latest;save();$('#updateBar').classList.remove('on');if(S.tab==='write')sizePad()};
   }catch(e){}                           // 인터넷이 없으면 조용히 넘어감
 }
 $('#updGo').onclick=()=>{toast('내려받은 뒤 파일을 열어 설치를 눌러 주세요');setTimeout(()=>{location.href=APK_URL},600)};
