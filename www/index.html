@@ -75,7 +75,7 @@ h2{font-size:15px;margin:18px 2px 8px;color:var(--sub)}
 .tools{display:flex;gap:8px;margin-top:12px}
 .tools .btn{flex:1;padding:12px 6px}
 .result{text-align:center;margin-top:12px;min-height:58px}
-.result b{font-size:30px}
+.result b{font-size:30px;letter-spacing:.04em}
 .result .msg{font-size:14px;color:var(--sub);margin-top:2px}
 /* sheet */
 .sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:20;display:none;align-items:flex-end;justify-content:center}
@@ -182,7 +182,10 @@ h2{font-size:15px;margin:18px 2px 8px;color:var(--sub)}
         <button class="btn" id="wRand">🔀 랜덤</button>
         <button class="btn" id="wNext">다음 →</button>
       </div>
-      <div style="text-align:center;margin-top:10px"><button class="btn" id="wAuto" style="font-size:13px;padding:8px 14px;border-radius:99px"></button></div>
+      <div style="text-align:center;margin-top:10px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+        <button class="btn" id="wAuto" style="font-size:13px;padding:8px 14px;border-radius:99px"></button>
+        <button class="btn" id="wOrder" style="font-size:13px;padding:8px 14px;border-radius:99px"></button>
+      </div>
     </section>
   </main>
 
@@ -207,6 +210,7 @@ h2{font-size:15px;margin:18px 2px 8px;color:var(--sub)}
 </div>
 <div class="toast" id="toast"></div>
 
+<script src="kvg.js"></script>
 <script>
 // ---------- 데이터 ----------
 const ROWS = [
@@ -306,7 +310,7 @@ function level(it){
   const s=S.stats[ch(it)];if(!s||(s.c+s.w===0&&!s.ws))return null;
   const n=s.c+s.w,acc=n?s.c/n:1;
   if(n>=3&&acc<0.6)return 'var(--bad)';
-  if((n>=3&&acc>=0.8)||s.ws>=80)return 'var(--good)';
+  if((n>=3&&acc>=0.8)||s.ws>=70)return 'var(--good)';
   return '#e0a32e';
 }
 function renderChart(){
@@ -327,7 +331,7 @@ function openSheet(it){
   $('#shRead').textContent=`${it.ko}  ·  ${it.ro}`;
   $('#shPair').textContent=(S.script==='h'?'카타카나 ':'히라가나 ')+other(it);
   const s=S.stats[ch(it)];
-  $('#shStat').textContent=s?`퀴즈 ${s.c}번 맞힘 · ${s.w}번 틀림${s.ws?` · 쓰기 최고 ${s.ws}점`:''}`:'아직 학습 기록이 없어요';
+  $('#shStat').textContent=s?`퀴즈 ${s.c}번 맞힘 · ${s.w}번 틀림${s.ws?` · 쓰기 최고 ${gradeOf(s.ws).name}`:''}`:'아직 학습 기록이 없어요';
   $('#sheetBg').classList.add('on');speak(ch(it));
 }
 ['#gridBasic','#gridDak'].forEach(id=>$(id).addEventListener('click',e=>{
@@ -400,8 +404,42 @@ function sizePad(){
 }
 window.addEventListener('resize',()=>{if(S.tab==='write')sizePad()});
 
-// 글자를 정사각형 캔버스 중앙에 그림 (채점과 화면 표시가 같은 위치를 쓰도록)
+// 획 데이터(KanjiVG SVG 경로, 109×109 좌표)를 점 목록으로 바꿈
+const KP={};
+function kvgStrokes(c){
+  if(KP[c])return KP[c];const d=window.KVG&&KVG[c];if(!d)return null;
+  return KP[c]=d.map(parsePath);
+}
+function parsePath(d){
+  const t=d.match(/[a-zA-Z]|-?\d*\.?\d+(?:e[-+]?\d+)?/g);let i=0,cmd='',x=0,y=0,px=0,py=0;const pts=[];
+  const n=()=>+t[i++];
+  const cub=(x1,y1,x2,y2,x3,y3)=>{for(let k=1;k<=10;k++){const s=k/10,u=1-s;
+    pts.push([u*u*u*x+3*u*u*s*x1+3*u*s*s*x2+s*s*s*x3,u*u*u*y+3*u*u*s*y1+3*u*s*s*y2+s*s*s*y3])}
+    px=x2;py=y2;x=x3;y=y3};
+  while(i<t.length){
+    if(/[a-zA-Z]/.test(t[i]))cmd=t[i++];
+    const rel=cmd===cmd.toLowerCase(),C=cmd.toUpperCase(),ox=rel?x:0,oy=rel?y:0;
+    if(C==='M'){x=n()+ox;y=n()+oy;px=x;py=y;pts.push([x,y]);cmd=rel?'l':'L'}
+    else if(C==='L'){x=n()+ox;y=n()+oy;px=x;py=y;pts.push([x,y])}
+    else if(C==='C'){cub(n()+ox,n()+oy,n()+ox,n()+oy,n()+ox,n()+oy)}
+    else if(C==='S'){const a=2*x-px,b=2*y-py;cub(a,b,n()+ox,n()+oy,n()+ox,n()+oy)}
+    else if(C!=='Z')i++;
+  }
+  return pts;
+}
+const KS=1.0/109; // 109 좌표 → 캔버스 크기 비율
+const kvgXY=(N,p)=>{const s=N*KS,o=N/2-54.5*s;return[o+p[0]*s,o+p[1]*s]};
+// 글자 선 굵기: 채점용은 가늘게(GLW), 화면에 보여 줄 때는 따라 쓰기 쉽게 굵게(withShowW)
+let GLW=0.05;
+const withShowW=f=>{GLW=0.065;try{f()}finally{GLW=0.05}};
+// 글자를 정사각형 캔버스 중앙에 그림 (채점과 화면 표시가 같은 모양·위치를 쓰도록)
 function drawGlyph(ctx,N,c,fill,strokeW){
+  const L=kvgStrokes(c);
+  if(L){
+    ctx.save();ctx.strokeStyle=fill;ctx.lineCap='round';ctx.lineJoin='round';ctx.lineWidth=N*GLW+(strokeW||0);
+    ctx.beginPath();for(const p of L)p.forEach((q,k)=>{const [X,Y]=kvgXY(N,q);k?ctx.lineTo(X,Y):ctx.moveTo(X,Y)});
+    ctx.stroke();ctx.restore();return;
+  }
   ctx.save();ctx.font=`${Math.round(N*0.78)}px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='alphabetic';
   const m=ctx.measureText(c);
   const y=N/2+(m.actualBoundingBoxAscent-m.actualBoundingBoxDescent)/2;
@@ -420,9 +458,39 @@ function drawStrokes(ctx,N,width,color,list){
   }
   ctx.restore();
 }
-function drawGuide(){
+// 획순 표시: 획마다 색 점선 + 끝에 화살촉 + 시작점에 번호
+const OC=['#e5484d','#3b7ddd','#2f9e44','#e8890c','#9c36b5','#0c8599'];
+function drawOrder(ctx,N,c){
+  const L=kvgStrokes(c);if(!L)return;
+  const r=N*0.034,placed=[];
+  ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
+  L.forEach((raw,i)=>{
+    const col=OC[i%OC.length],P=raw.map(p=>kvgXY(N,p));
+    ctx.strokeStyle=col;ctx.lineWidth=N*0.009;ctx.setLineDash([N*0.022,N*0.014]);
+    ctx.beginPath();P.forEach(([X,Y],k)=>k?ctx.lineTo(X,Y):ctx.moveTo(X,Y));ctx.stroke();ctx.setLineDash([]);
+    // 끝 화살촉 (마지막 부분의 방향)
+    const e=P[P.length-1];let b=P[0];for(let k=P.length-2;k>=0;k--){if(Math.hypot(e[0]-P[k][0],e[1]-P[k][1])>N*0.03){b=P[k];break}}
+    const a=Math.atan2(e[1]-b[1],e[0]-b[0]),h=N*0.042;
+    ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(e[0]+Math.cos(a)*h*0.35,e[1]+Math.sin(a)*h*0.35);
+    ctx.lineTo(e[0]+Math.cos(a+2.6)*h,e[1]+Math.sin(a+2.6)*h);ctx.lineTo(e[0]+Math.cos(a-2.6)*h,e[1]+Math.sin(a-2.6)*h);ctx.closePath();ctx.fill();
+    // 시작점 번호: 획 시작 방향의 반대쪽에 두고, 다른 번호와 겹치면 옆으로 비킴
+    const s=P[0];let q=P[P.length-1];for(const p of P){if(Math.hypot(p[0]-s[0],p[1]-s[1])>N*0.03){q=p;break}}
+    const sa=Math.atan2(q[1]-s[1],q[0]-s[0])+Math.PI;let cx=0,cy=0;
+    for(const [da,dist] of [[0,1.5],[0.9,1.5],[-0.9,1.5],[1.6,1.6],[-1.6,1.6],[0,2.6],[0.8,2.6],[-0.8,2.6]]){
+      cx=s[0]+Math.cos(sa+da)*r*dist;cy=s[1]+Math.sin(sa+da)*r*dist;
+      if(placed.every(([x,y])=>Math.hypot(x-cx,y-cy)>r*2.1))break;
+    }
+    cx=Math.min(N-r-1,Math.max(r+1,cx));cy=Math.min(N-r-1,Math.max(r+1,cy));placed.push([cx,cy]);
+    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fff';ctx.font=`700 ${Math.round(r*1.35)}px system-ui,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(i+1,cx,cy+r*0.06);
+  });
+  ctx.restore();
+}
+function drawGuide(){withShowW(drawGuide0)}
+function drawGuide0(){
   const N=guide.width;gctx.clearRect(0,0,N,N);const it=witem();if(!it)return;
-  if(S.writeMode==='trace'&&!W.checked)drawGlyph(gctx,N,ch(it),css('--guide'));
+  if(S.writeMode==='trace'&&!W.checked){drawGlyph(gctx,N,ch(it),css('--guide'));if(S.order!==false)drawOrder(gctx,N,ch(it))}
   if(W.checked){ // 보고쓰기는 모범 글자를 내가 쓴 크기·위치에 맞춰 겹쳐 보여줌
     gctx.globalAlpha=.35;
     if(S.writeMode==='recall'&&W.strokes.length)drawGlyphIn(gctx,N,ch(it),css('--accent'),0,strokesBox(W.strokes));
@@ -466,7 +534,7 @@ function strokesBox(st){let a=1,b=1,c=0,d=0;for(const s of st)for(const [x,y] of
 const GBOX={};
 function glyphBox(c){
   if(GBOX[c])return GBOX[c];
-  const N=200,m=maskOf((x,n)=>drawGlyph(x,n,c,'#000'),N);let a=N,b=N,cc=0,d=0;
+  const w=GLW;GLW=0.05;const N=200,m=maskOf((x,n)=>drawGlyph(x,n,c,'#000'),N);GLW=w;let a=N,b=N,cc=0,d=0;
   for(let y=0;y<N;y++)for(let x=0;x<N;x++)if(m[y*N+x]){if(x<a)a=x;if(y<b)b=y;if(x>cc)cc=x;if(y>d)d=y}
   return GBOX[c]=[a/N,b/N,(cc+1)/N,(d+1)/N];
 }
@@ -478,7 +546,17 @@ function drawGlyphIn(ctx,N,c,fill,strokeW,tBox){
   ctx.save();ctx.translate(tx*N,ty*N);ctx.scale(s,s);ctx.translate(-gx*N,-gy*N);
   drawGlyph(ctx,N,c,fill,strokeW?strokeW/s:0);ctx.restore();
 }
+// 보고쓰기 기울기 보정: 쓴 글씨를 조금씩 돌리거나(회전) 비스듬히 펴 보며(기울임) 가장 잘 맞는 점수를 씀
+const TILTS=[[0,0],...[-20,-15,-10,-5,5,10,15,20].map(d=>[d*Math.PI/180,0]),[0,-0.3],[0,-0.15],[0,0.15],[0,0.3]];
+function tilt(strokes,[a,sh]){
+  const [cx,cy]=boxMid(strokesBox(strokes)),co=Math.cos(a),si=Math.sin(a);
+  return strokes.map(s=>s.map(([x,y])=>{let dx=x-cx,dy=y-cy;dx+=sh*dy;return[cx+dx*co-dy*si,cy+dx*si+dy*co]}));
+}
 function score(c,strokes,fit){
+  if(fit){let best=0;for(const t of TILTS){best=Math.max(best,score1(c,tilt(strokes,t),true));if(best>=100)break}return best}
+  return score1(c,strokes,false);
+}
+function score1(c,strokes,fit){
   const N=100;
   if(fit){ // 쓴 글씨를 가운데 70% 크기로 옮기고, 모범 글자도 같은 상자에 맞춤
     const ub=strokesBox(strokes),k=0.7/boxSize(ub),[ux,uy]=boxMid(ub);
@@ -521,8 +599,9 @@ function distScore(c,strokes){ // strokes는 이미 가운데 70% 상자로 정�
   const U=resample(strokes,0.01),G=glyphCore(c);if(!U.length||!G.length)return 0;
   const a=nearest(U,G),b=nearest(G,U),mean=v=>v.reduce((x,y)=>x+y,0)/v.length,p90=v=>v[Math.floor(v.length*0.9)];
   const e=0.5*Math.max(mean(a),mean(b))+0.5*Math.max(p90(a),p90(b)); // 평균 거리 + 가장 어긋난 부분
-  return Math.max(0,Math.min(1,(0.15-e)/0.10))*100;
+  return Math.max(0,Math.min(1,(CAL.d0-e)/CAL.dw))*100;
 }
+const CAL={d0:0.12,dw:0.08,p0:0.32}; // 채점 기준값 (d0·dw는 작을수록, p0은 클수록 엄격)
 function compare(G,Gd,strokes,N,uTol){
   const U =maskOf((x,n)=>drawStrokes(x,n,n*0.05,'#000',strokes),N);
   const Ud=maskOf((x,n)=>drawStrokes(x,n,n*uTol,'#000',strokes),N);
@@ -530,8 +609,13 @@ function compare(G,Gd,strokes,N,uTol){
   for(let i=0;i<N*N;i++){if(U[i]){u++;if(Gd[i])ug++}if(G[i]){g++;if(Ud[i])gu++}}
   if(!u||!g)return 0;
   const P=ug/u,R=gu/g;
-  return Math.round(Math.max(0,Math.min(1,(P*R-0.22)/0.6))*100);
+  return Math.round(Math.max(0,Math.min(1,(P*R-CAL.p0)/0.6))*100);
 }
+// 5단계 판정 (내부 점수 기준)
+const GRADES=[{min:90,name:'EXCELLENT',col:'#d08a00',msg:'완벽해요! 🎉'},{min:70,name:'GREAT',col:'var(--good)',msg:'잘 썼어요 👍'},
+  {min:35,name:'GOOD',col:'#3b7ddd',msg:'좋아요!'},{min:20,name:'NOT BAD',col:'#e0a32e',msg:'빨간 글자와 비교해 보세요'},
+  {min:-1,name:'TRY AGAIN',col:'var(--bad)',msg:'빨간 글자를 참고해서 다시 써 볼까요?'}];
+const gradeOf=sc=>GRADES.find(g=>sc>=g.min);
 function setResult(html){$('#wResult').innerHTML=html||`<div class="msg">${S.writeMode==='trace'?'회색 글자를 따라 써 보세요':'발음을 보고 글자를 떠올려 써 보세요'}</div>`}
 function doCheck(auto){
   clearTimers();
@@ -539,13 +623,13 @@ function doCheck(auto){
   if(!W.strokes.length){if(!auto)toast('먼저 글자를 써 보세요');return}
   const it=witem(),sc=score(ch(it),W.strokes,S.writeMode==='recall');
   const s=st(ch(it));if(sc>s.ws)s.ws=sc;
-  if(S.writeMode==='recall'){sc>=65?s.c++:s.w++}
+  const g=gradeOf(sc),pass=g.name!=='TRY AGAIN';
+  if(S.writeMode==='recall'){pass?s.c++:s.w++}
   save();
   W.checked=true;drawGuide();
-  const [msg,col]=sc>=85?['완벽해요! 🎉','var(--good)']:sc>=65?['잘 썼어요 👍','var(--good)']:sc>=45?['조금만 더! 빨간 글자와 비교해 보세요','#e0a32e']:['다시 써 볼까요? 빨간 글자를 참고하세요','var(--bad)'];
-  const goOn=S.auto!==false&&sc>=65;
-  const hint=goOn?'곧 다음 글자로 넘어가요':S.auto!==false?'칸을 다시 터치하면 새로 쓸 수 있어요':'';
-  setResult(`<b style="color:${col}">${sc}점</b><div class="msg">${msg}${hint?'<br>'+hint:''}</div>`);
+  const goOn=S.auto!==false&&pass;
+  const hint=goOn?'곧 다음 글자로 넘어가요':S.auto!==false&&!pass?'칸을 다시 터치하면 새로 쓸 수 있어요':'';
+  setResult(`<b style="color:${g.col}">${g.name}</b><div class="msg">${g.msg}${hint?'<br>'+hint:''}</div>`);
   speak(ch(it));
   if(goOn)nextT=setTimeout(()=>{if(S.tab==='write'&&W.checked)$('#wNext').click()},1400);
 }
@@ -553,6 +637,9 @@ $('#wCheck').onclick=()=>doCheck(false);
 function paintAuto(){const on=S.auto!==false;$('#wAuto').textContent=on?'⚡ 자동 채점·넘기기 켜짐':'자동 채점·넘기기 꺼짐';$('#wAuto').classList.toggle('pri',on)}
 $('#wAuto').onclick=()=>{S.auto=S.auto===false;save();paintAuto();clearTimers();toast(S.auto?'다 쓰면 알아서 채점하고, 잘 쓰면 다음 글자로 넘어가요':'채점·다음 버튼을 직접 눌러요')};
 paintAuto();
+function paintOrder(){const on=S.order!==false;$('#wOrder').textContent=on?'🔢 획순 보기 켜짐':'획순 보기 꺼짐';$('#wOrder').classList.toggle('pri',on);$('#wOrder').style.display=S.writeMode==='trace'?'':'none'}
+$('#wOrder').onclick=()=>{S.order=S.order===false;save();paintOrder();drawGuide()};
+paintOrder();
 $('#wUndo').onclick=()=>{clearTimers();if(W.checked){W.checked=false;drawGuide();setResult()}W.strokes.pop();drawInk()};
 $('#wClear').onclick=()=>{clearTimers();W.strokes=[];W.checked=false;drawGuide();drawInk();setResult()};
 function loadWrite(keepIdx){
@@ -569,7 +656,7 @@ $('#wNext').onclick=()=>{W.idx=(W.idx+1)%W.pool.length;loadWrite(true)};
 $('#wRand').onclick=()=>{if(W.pool.length>1){let n;do{n=Math.random()*W.pool.length|0}while(n===W.idx);W.idx=n}loadWrite(true)};
 $('#wSpeak').onclick=()=>speak(ch(witem()));
 fillSelect('#writeSet','writeSet',()=>{W.idx=0;loadWrite()});
-bindSeg('#writeModeSeg','writeMode',()=>loadWrite(true));
+bindSeg('#writeModeSeg','writeMode',()=>{paintOrder();loadWrite(true)});
 
 // ---------- 업데이트 확인 (GitHub 최신 릴리스와 앱 버전 비교) ----------
 const REPO='g59raphy/kana-study';
