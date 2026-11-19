@@ -24,6 +24,10 @@ jobs:
           distribution: temurin
           java-version: 21
 
+      - name: Set version
+        # 화면에 보이는 버전: 2.0.x (실행 10번째가 2.0.1). 내부 업데이트 번호(versionCode)는 실행 번호 그대로
+        run: echo "VER=2.0.$((GITHUB_RUN_NUMBER - 9))" >> $GITHUB_ENV
+
       - name: Install packages
         run: npm install
 
@@ -40,7 +44,7 @@ jobs:
           # 세로 화면 고정
           sed -i 's/android:name=".MainActivity"/android:name=".MainActivity" android:screenOrientation="portrait"/' android/app/src/main/AndroidManifest.xml
           # 업데이트 설치가 되도록 버전 번호 증가
-          sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]+\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
+          sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]+\"/versionName \"$VER\"/" android/app/build.gradle
           npx cap sync android
 
       - name: Build APK
@@ -61,18 +65,18 @@ jobs:
           $BT/apksigner verify kana-study.apk
           rm ks.p12
           # 파일명에 버전 표기. kana-study.apk 는 v1.0.4 이하 앱의 업데이트 버튼용 사본
-          cp kana-study.apk kana-study-v1.0.${{ github.run_number }}.apk
+          cp kana-study.apk kana-study-v${{ env.VER }}.apk
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: 가나 공부 v1.0.${{ github.run_number }}
+          tag_name: v${{ env.VER }}
+          name: 하루 니혼고 v${{ env.VER }}
           make_latest: true
           files: |
-            kana-study-v1.0.${{ github.run_number }}.apk
+            kana-study-v${{ env.VER }}.apk
             kana-study.apk
           body: |
-            안드로이드 휴대폰에서 아래 **kana-study-v1.0.${{ github.run_number }}.apk** 를 눌러 내려받아 설치하세요.
+            안드로이드 휴대폰에서 아래 **kana-study-v${{ env.VER }}.apk** 를 눌러 내려받아 설치하세요.
             (kana-study.apk 는 같은 파일이며, 예전 버전 앱의 업데이트 버튼용입니다.)
             (처음 설치할 때 "출처를 알 수 없는 앱 설치"를 허용해야 할 수 있어요.)
