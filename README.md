@@ -33,4 +33,4 @@
 - 안드로이드 포장: [Capacitor](https://capacitorjs.com/)
 - `main` 브랜치에 올리면 GitHub Actions가 APK를 만들어 Releases에 자동으로 올립니다.
 - 서명 키는 저장소의 Secrets(`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`)에 있습니다.
-- 획순 데이터(`www/kvg.js`): [KanjiVG](https://kanjivg.tagaini.net) © Ulrich Apel, [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/)
+- 획순 데이터(`www/index.html` 안의 `KVG`): [KanjiVG](https://kanjivg.tagaini.net) © Ulrich Apel, [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/)
