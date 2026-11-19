@@ -1,0 +1,18 @@
+{
+  "name": "kana-study",
+  "version": "1.0.0",
+  "private": true,
+  "description": "히라가나·가타카나 공부 앱 (오십음도, 퀴즈, 필기 연습)",
+  "scripts": {
+    "sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor-community/text-to-speech": "^8.0.2",
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/core": "^8.6.2"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^4.0.0",
+    "@capacitor/cli": "^8.6.2"
+  }
+}

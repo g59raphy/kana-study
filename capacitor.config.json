@@ -1,0 +1,8 @@
+{
+  "appId": "kr.kanastudy.app",
+  "appName": "가나 공부",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#faf7f2"
+  }
+}

@@ -1,0 +1,7 @@
+node_modules/
+android/
+ios/
+*.p12
+*.jks
+*.keystore
+signing/

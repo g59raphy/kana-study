@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#fff1f4"/>
+    </linearGradient>
+    <radialGradient id="petal" cx="0.5" cy="0.9" r="0.9">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f7a8bd"/>
+    </radialGradient>
+    <!-- 벚꽃 꽃잎 하나 (끝이 갈라진 모양) -->
+    <path id="p" d="M0,0 C-34,-22 -40,-72 -16,-98 L0,-84 L16,-98 C40,-72 34,-22 0,0 Z" fill="url(#petal)" stroke="#ef8fa8" stroke-width="3"/>
+    <g id="flower">
+      <use xlink:href="#p"/>
+      <use xlink:href="#p" transform="rotate(72)"/>
+      <use xlink:href="#p" transform="rotate(144)"/>
+      <use xlink:href="#p" transform="rotate(216)"/>
+      <use xlink:href="#p" transform="rotate(288)"/>
+      <circle r="14" fill="#e9577a"/>
+      <g fill="#e9577a">
+        <circle cx="0" cy="-34" r="5"/><circle cx="32" cy="-11" r="5"/><circle cx="20" cy="28" r="5"/><circle cx="-20" cy="28" r="5"/><circle cx="-32" cy="-11" r="5"/>
+      </g>
+    </g>
+    <path id="lone" d="M0,0 C-20,-14 -24,-44 -10,-60 L0,-52 L10,-60 C24,-44 20,-14 0,0 Z" fill="#f9bccb"/>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+
+  <!-- 일본 국기 -->
+  <rect x="242" y="250" width="540" height="360" rx="18" fill="#ffffff" stroke="#e6dcdc" stroke-width="6"/>
+  <circle cx="512" cy="430" r="108" fill="#bc002d"/>
+
+  <!-- 日本語 -->
+  <text x="512" y="790" text-anchor="middle" font-family="Yu Gothic, Meiryo, MS Gothic, sans-serif" font-weight="bold" font-size="170" fill="#3a2a2e" letter-spacing="10">日本語</text>
+
+  <!-- 벚꽃 -->
+  <use xlink:href="#flower" transform="translate(262,262) scale(1.15) rotate(10)"/>
+  <use xlink:href="#flower" transform="translate(790,548) scale(0.8) rotate(-15)"/>
+  <use xlink:href="#flower" transform="translate(800,250) scale(0.55) rotate(30)"/>
+  <use xlink:href="#lone" transform="translate(220,640) rotate(-35)"/>
+  <use xlink:href="#lone" transform="translate(860,820) rotate(50) scale(0.8)"/>
+  <use xlink:href="#lone" transform="translate(170,860) rotate(15) scale(0.7)"/>
+</svg>
