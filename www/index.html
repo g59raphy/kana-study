@@ -86,6 +86,12 @@ h2{font-size:15px;margin:18px 2px 8px;color:var(--sub)}
 .sheet .rd{font-size:26px;font-weight:800;margin-top:6px}
 .sheet .row{margin-top:18px}
 .sheet .row .btn{flex:1}
+.update{display:none;align-items:center;gap:10px;margin:0 16px 10px;padding:12px 14px;border-radius:14px;background:var(--accent-soft);border:1px solid var(--accent)}
+.update.on{display:flex}
+.update .t{flex:1;font-size:14px;font-weight:700}
+.update .t small{display:block;font-weight:500;color:var(--sub);font-size:12px;margin-top:2px}
+.update .btn{padding:8px 12px;font-size:14px}
+.update .x{border:0;background:none;color:var(--sub);font-size:18px;padding:4px}
 .toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#333;color:#fff;padding:9px 16px;border-radius:99px;font-size:14px;z-index:30;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:.95}
 </style>
@@ -99,6 +105,12 @@ h2{font-size:15px;margin:18px 2px 8px;color:var(--sub)}
       <button data-v="k" class="jp">カタカナ</button>
     </div>
   </header>
+
+  <div class="update" id="updateBar">
+    <div class="t">🎉 새 버전이 있어요 <span id="updVer"></span><small id="updCur"></small></div>
+    <button class="btn pri" id="updGo">업데이트</button>
+    <button class="x" id="updClose" aria-label="닫기">✕</button>
+  </div>
 
   <main>
     <!-- 표 -->
@@ -468,9 +480,32 @@ $('#wSpeak').onclick=()=>speak(ch(witem()));
 fillSelect('#writeSet','writeSet',()=>{W.idx=0;loadWrite()});
 bindSeg('#writeModeSeg','writeMode',()=>loadWrite(true));
 
+// ---------- 업데이트 확인 (GitHub 최신 릴리스와 앱 버전 비교) ----------
+const REPO='g59raphy/kana-study';
+const APK_URL=`https://github.com/${REPO}/releases/latest/download/kana-study.apk`;
+const verNum=v=>String(v||'').replace(/^v/,'').split('.').map(n=>parseInt(n,10)||0);
+const newer=(a,b)=>{const x=verNum(a),y=verNum(b);for(let i=0;i<Math.max(x.length,y.length);i++){if((x[i]||0)!==(y[i]||0))return (x[i]||0)>(y[i]||0)}return false};
+async function checkUpdate(){
+  const app=window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.App;
+  if(!app)return;                       // 컴퓨터 브라우저에서는 확인하지 않음
+  try{
+    const {version}=await app.getInfo();
+    const r=await fetch(`https://api.github.com/repos/${REPO}/releases/latest`,{headers:{Accept:'application/vnd.github+json'}});
+    if(!r.ok)return;
+    const latest=(await r.json()).tag_name;
+    if(!newer(latest,version)||S.skipVer===latest)return;
+    $('#updVer').textContent=latest;
+    $('#updCur').textContent=`지금 버전 v${version} · 학습 기록은 그대로 남아요`;
+    $('#updateBar').classList.add('on');
+    $('#updClose').onclick=()=>{S.skipVer=latest;save();$('#updateBar').classList.remove('on')};
+  }catch(e){}                           // 인터넷이 없으면 조용히 넘어감
+}
+$('#updGo').onclick=()=>{toast('내려받은 뒤 파일을 열어 설치를 눌러 주세요');setTimeout(()=>{location.href=APK_URL},600)};
+
 // ---------- 시작 ----------
 loadWrite();
 showTab(S.tab);
+checkUpdate();
 </script>
 </body>
 </html>
