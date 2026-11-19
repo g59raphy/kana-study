@@ -181,6 +181,7 @@ h2{font-size:15px;margin:18px 2px 8px;color:var(--sub)}
         <button class="btn" id="wRand">🔀 랜덤</button>
         <button class="btn" id="wNext">다음 →</button>
       </div>
+      <div style="text-align:center;margin-top:10px"><button class="btn" id="wAuto" style="font-size:13px;padding:8px 14px;border-radius:99px"></button></div>
     </section>
   </main>
 
@@ -235,6 +236,13 @@ ROWS.forEach(([key,h,k,ro,ko,dak])=>{
     ITEMS.push(it);LAYOUT[dak].push(it);
   }
 });
+// 획수 (기본 46자 순서). 탁음은 +2, 반탁음은 +1
+const STROKES={};
+{const hb=ITEMS.filter(i=>!i.dak),hs='3222334132312314211243221314143232332222121231',ks='2233323232332223333222241221142322322322213232';
+ hb.forEach((it,i)=>{STROKES[it.h]=+hs[i];STROKES[it.k]=+ks[i]});
+ ITEMS.filter(i=>i.dak).forEach(it=>{const p=it.row==='pa',d=p?2:1,add=p?1:2;
+   const bh=String.fromCharCode(it.h.charCodeAt(0)-d),bk=String.fromCharCode(it.k.charCodeAt(0)-d);
+   STROKES[it.h]=STROKES[bh]+add;STROKES[it.k]=STROKES[bk]+add})}
 const SETS=[['basic','기본 46자'],['dak','탁음·반탁음 25자'],['all','전체 71자'],
   ...ROWS.filter(r=>r[6]).map(r=>[r[0],r[6]])];
 function poolOf(set){
@@ -420,7 +428,7 @@ function drawInk(){const N=ink.width;ictx.clearRect(0,0,N,N);drawStrokes(ictx,N,
 
 function pt(e){const r=ink.getBoundingClientRect();return[(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]}
 ink.addEventListener('pointerdown',e=>{
-  e.preventDefault();ink.setPointerCapture(e.pointerId);
+  e.preventDefault();ink.setPointerCapture(e.pointerId);clearTimers();
   if(W.checked){W.checked=false;W.strokes=[];drawGuide();setResult()}
   W.cur=[pt(e)];W.strokes.push(W.cur);drawInk();
 });
@@ -430,7 +438,15 @@ ink.addEventListener('pointermove',e=>{
   for(const ev of (evs.length?evs:[e]))W.cur.push(pt(ev));
   drawInk();
 });
-const endStroke=()=>{W.cur=null};
+// 자동 채점: 획수를 다 쓰면 0.7초 뒤, 덜 썼으면 손을 뗀 채 2.2초 지나면 채점
+let autoT=null,nextT=null;
+const clearTimers=()=>{clearTimeout(autoT);clearTimeout(nextT)};
+const endStroke=()=>{
+  if(!W.cur)return;W.cur=null;
+  if(S.auto===false)return;
+  const need=STROKES[ch(witem())]||1;
+  clearTimeout(autoT);autoT=setTimeout(()=>doCheck(true),W.strokes.length>=need?700:2200);
+};
 ink.addEventListener('pointerup',endStroke);ink.addEventListener('pointercancel',endStroke);
 
 // 채점: 쓴 획이 글자 모양 안에 있는 비율(정확도) × 글자 모양을 얼마나 덮었는지(완성도)
@@ -452,21 +468,31 @@ function score(c,strokes){
   return Math.round(Math.max(0,Math.min(1,(P*R-0.3)/0.6))*100);
 }
 function setResult(html){$('#wResult').innerHTML=html||`<div class="msg">${S.writeMode==='trace'?'회색 글자를 따라 써 보세요':'발음을 보고 글자를 떠올려 써 보세요'}</div>`}
-$('#wCheck').onclick=()=>{
-  if(!W.strokes.length){toast('먼저 글자를 써 보세요');return}
+function doCheck(auto){
+  clearTimers();
+  if(W.checked)return;
+  if(!W.strokes.length){if(!auto)toast('먼저 글자를 써 보세요');return}
   const it=witem(),sc=score(ch(it),W.strokes);
   const s=st(ch(it));if(sc>s.ws)s.ws=sc;
   if(S.writeMode==='recall'){sc>=60?s.c++:s.w++}
   save();
   W.checked=true;drawGuide();
   const [msg,col]=sc>=85?['완벽해요! 🎉','var(--good)']:sc>=65?['잘 썼어요 👍','var(--good)']:sc>=45?['조금만 더! 빨간 글자와 비교해 보세요','#e0a32e']:['다시 써 볼까요? 빨간 글자를 참고하세요','var(--bad)'];
-  setResult(`<b style="color:${col}">${sc}점</b><div class="msg">${msg}</div>`);
+  const goOn=S.auto!==false&&sc>=65;
+  const hint=goOn?'곧 다음 글자로 넘어가요':S.auto!==false?'칸을 다시 터치하면 새로 쓸 수 있어요':'';
+  setResult(`<b style="color:${col}">${sc}점</b><div class="msg">${msg}${hint?'<br>'+hint:''}</div>`);
   speak(ch(it));
-};
-$('#wUndo').onclick=()=>{if(W.checked){W.checked=false;drawGuide();setResult()}W.strokes.pop();drawInk()};
-$('#wClear').onclick=()=>{W.strokes=[];W.checked=false;drawGuide();drawInk();setResult()};
+  if(goOn)nextT=setTimeout(()=>{if(S.tab==='write'&&W.checked)$('#wNext').click()},1400);
+}
+$('#wCheck').onclick=()=>doCheck(false);
+function paintAuto(){const on=S.auto!==false;$('#wAuto').textContent=on?'⚡ 자동 채점·넘기기 켜짐':'자동 채점·넘기기 꺼짐';$('#wAuto').classList.toggle('pri',on)}
+$('#wAuto').onclick=()=>{S.auto=S.auto===false;save();paintAuto();clearTimers();toast(S.auto?'다 쓰면 알아서 채점하고, 잘 쓰면 다음 글자로 넘어가요':'채점·다음 버튼을 직접 눌러요')};
+paintAuto();
+$('#wUndo').onclick=()=>{clearTimers();if(W.checked){W.checked=false;drawGuide();setResult()}W.strokes.pop();drawInk()};
+$('#wClear').onclick=()=>{clearTimers();W.strokes=[];W.checked=false;drawGuide();drawInk();setResult()};
 function loadWrite(keepIdx){
   if(!keepIdx){W.pool=poolOf(S.writeSet);if(W.idx>=W.pool.length||W.idx<0)W.idx=0}
+  clearTimers();
   const it=witem();W.strokes=[];W.checked=false;
   const recall=S.writeMode==='recall';
   $('#wChar').textContent=recall?'?':ch(it);
